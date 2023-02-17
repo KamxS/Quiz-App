@@ -1,10 +1,12 @@
-import { StyleSheet, View, Text, Pressable, Image } from "react-native";
-import { useState, useContext } from "react";
+import { StyleSheet, View, Text, Pressable, Image, Dimensions } from "react-native";
+import { useState, useContext, useEffect, useRef } from "react";
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withTiming,
     withDelay,
+    cancelAnimation,
+    Easing
 } from "react-native-reanimated";
 import { GlobalCtx } from "./context";
 
@@ -51,7 +53,28 @@ let questionCounterStyles = StyleSheet.create({
     },
 });
 
+function Timer({widthValue}) {
+    const sliderAnim = useAnimatedStyle(() => {
+        return {
+            transform: [{translateX: widthValue.value}]
+        };
+    });
+    return <Animated.View style={[timerStyles.main, sliderAnim]}></Animated.View>;
+}
+
+let timerStyles = StyleSheet.create({
+    main: {
+        width: "100%",
+        marginTop: 25,
+        height: 5,
+        backgroundColor: "white",
+    },
+});
+
 export default function Game({ route, navigation }) {
+
+    //TODO: Put a game into another component, add special multiplayer component that handles whole multiplayer
+    
     const questions = useContext(GlobalCtx).questions;
     const { indx } = route.params;
 
@@ -65,7 +88,9 @@ export default function Game({ route, navigation }) {
     ]);
 
     const [interactive, setInteractive] = useState(true);
+    const timeoutID = useRef(null);
 
+    const fadeAnimTime = 500;
     const opacityAnim = useSharedValue(1);
     const fadeOutAnim = useAnimatedStyle(() => {
         return {
@@ -79,18 +104,32 @@ export default function Game({ route, navigation }) {
         };
     });
 
+    const roundTime = 30000;
+    const sliderWidth = useSharedValue(0);
+
     function press(answer) {
         if (interactive === false) return;
+        clearTimeout(timeoutID.current);
+        cancelAnimation(sliderWidth);
+        sliderWidth.value = 0;
+
+        setAnswers((current) => {
+            nextRound(answer === questions[indx[questionNum]].goodAnswer);
+            return current;
+        });
+    }
+
+    function nextRound(wasCorrect) {
         setInteractive(false);
 
         setAnswers((current) => {
-            answer === questions[indx[questionNum]].goodAnswer
+            wasCorrect
                 ? (current[questionNum] = Answer.Right)
                 : (current[questionNum] = Answer.Wrong);
             return current;
         });
 
-        opacityAnim.value = withDelay(1500, withTiming(0, { duration: 500 }));
+        opacityAnim.value = withDelay(1500, withTiming(0, { duration: fadeAnimTime }));
         goodAnswerColorAnim.value = withTiming("#440381", { duration: 1000 });
         setTimeout(() => {
             goodAnswerColorAnim.value = "#2A2E35";
@@ -102,15 +141,23 @@ export default function Game({ route, navigation }) {
                 }
             });
 
+            opacityAnim.value = withTiming(1, { duration: fadeAnimTime });
             setTimeout(() => {
-                opacityAnim.value = withTiming(1, { duration: 500 });
                 setInteractive(true);
-            }, 500);
+            }, fadeAnimTime);
         }, 2200);
     }
 
+    useEffect(() => {
+        sliderWidth.value = withDelay(fadeAnimTime,withTiming(-Dimensions.get("screen").width,{duration: roundTime, easing: Easing.linear}));
+        timeoutID.current = setTimeout(() => {
+            nextRound(false);
+        }, roundTime + fadeAnimTime);
+    },["",questionNum]);
+
     return (
         <View style={styles.main}>
+            <Timer widthValue={sliderWidth}/>
             <View style={styles.container}>
                 <QuestionCounter answers={answers} />
                 {questions[indx[questionNum]].imageLoc !== "" && (
@@ -159,7 +206,7 @@ let styles = StyleSheet.create({
     },
     container: {
         width: "100%",
-        height: "100%",
+        flex: 1,
         alignItems: "center",
         padding: 20,
     },
