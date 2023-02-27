@@ -7,20 +7,20 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 export default function PlayTab({navigation})  {
     const numOfQuestions = useContext(GlobalCtx).questionsNum;
 
-    function startGame(toGenerate) {
+    function startGame(toGenerate, isOnline) {
         //TODO: There's a chance that one question may be choosen twice
         let randomInd= [];
         for(let i=0;i<toGenerate;i++) {
             let randomIndex = Math.floor(Math.random() * numOfQuestions);
             randomInd.push(randomIndex);
         }
-        navigation.push('Game',{indx: randomInd});
+        navigation.push('Game',{indx: randomInd, online: isOnline});
     }
 
     return (
         <View style={styles.container}>
             <View style={styles.rowBig}>
-                <Pressable style={styles.playBtnVertical} onPress={() => startGame(5)}>
+                <Pressable style={styles.playBtnVertical} onPress={() => startGame(5, false)}>
                     <Ionicons style="playIcon" name="game-controller" size={100} color="white" />
                     <Text style={styles.playText}>Play 5</Text>
                 </Pressable>
@@ -30,10 +30,10 @@ export default function PlayTab({navigation})  {
                 </Pressable>
             </View>
             <View style={styles.row}>
-                <View style={styles.playBtnHorizontal}>
+                <Pressable style={styles.playBtnHorizontal} onPress={() => startGame(5, true)}>
                     <MaterialCommunityIcons name="sword-cross" size={60} color="white" />
                     <Text style={styles.playText}>Versus Mode</Text>
-                </View>
+                </Pressable>
             </View>
             <View style={styles.row}>
                 <View style={styles.playBtnHorizontal}></View>
