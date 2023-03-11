@@ -1,9 +1,15 @@
 import { useState, useEffect, useContext } from "react";
-import { StyleSheet, Text, View, Button, Pressable } from "react-native";
+import { StyleSheet, Text, View, Pressable } from "react-native";
 import { GlobalCtx } from "../context";
-//import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { getId, getGames, createGame } from "../../lib/pocketbase";
+import {
+    getId,
+    getGames,
+    createGame,
+    joinGameQueue,
+    leaveGameQueue,
+} from "../../lib/pocketbase";
 import { useQuery, useQueryClient, useMutation } from "react-query";
 
 export default function PlayTab({ navigation }) {
@@ -20,14 +26,13 @@ export default function PlayTab({ navigation }) {
         onSuccess: (data) => {
             navigation.push("MultiplayerGame", {
                 gameId: data.id,
-            })
-        }
+            });
+        },
     });
 
     function startGame(toGenerate, isOnline) {
         if (isOnline) {
             if (!getId()) return;
-            queryClient.invalidateQueries({ queryKey: ["games"] });
             if (games.data.length > 0) {
                 const available_games = games.data.map((game) => {
                     if (game.users.length < 2) {
@@ -58,8 +63,19 @@ export default function PlayTab({ navigation }) {
               });
     }
 
-    //   <Ionicons style="playIcon" name="game-controller" size={100} color="white" />
-    //<Ionicons style="playIcon" name="game-controller" size={100} color="white" />
+    function test() {
+        setTestModal(true);
+    }
+
+    useEffect(() => {
+        joinGameQueue(() => {
+            queryClient.invalidateQueries({ queryKey: ["games"] });
+        });
+        return () => {
+            leaveGameQueue();
+        };
+    }, []);
+
     return (
         <View style={styles.container}>
             <View style={styles.rowBig}>
@@ -67,11 +83,11 @@ export default function PlayTab({ navigation }) {
                     style={styles.playBtnVertical}
                     onPress={() => startGame(5, false)}
                 >
-                    <Text>Ionicons game-controlle</Text>
+                    <Ionicons style="playIcon" name="game-controller" size={100} color="white" />
                     <Text style={styles.playText}>Play 5</Text>
                 </Pressable>
                 <Pressable style={styles.playBtnVertical}>
-                    <Text>Ionicons game-controller</Text>
+                    <Ionicons style="playIcon" name="game-controller" size={100} color="white" />
                     <Text style={styles.playText}>Play 20</Text>
                 </Pressable>
             </View>
@@ -89,7 +105,11 @@ export default function PlayTab({ navigation }) {
                 </Pressable>
             </View>
             <View style={styles.row}>
-                <View style={styles.playBtnHorizontal}></View>
+                <Pressable
+                    style={styles.playBtnHorizontal}
+                    onPress={() => test()}
+                >
+                </Pressable>
             </View>
             {/* <Button onPress={() => startGame(5)} title="Start"/> */}
         </View>

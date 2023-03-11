@@ -1,4 +1,4 @@
-import { StyleSheet, View, Dimensions, Text } from "react-native";
+import { StyleSheet, View, Dimensions, Text, Modal} from "react-native";
 import { useState, useContext, useEffect, useRef } from "react";
 import {
     useSharedValue,
@@ -12,10 +12,11 @@ import { GlobalCtx } from "./context";
 import { Timer } from "./Game/Timer";
 import MultiplayerQuestionCounter from "./Game/MultiplayerQuestionCounter";
 import { useQuery, useMutation, useQueryClient } from "react-query";
-import { joinGame, leaveGame, getGame, getId, answer} from "../lib/pocketbase";
+import { joinGame, leaveGame, getGame, getId, answer } from "../lib/pocketbase";
 
 export default function MultiplayerGame({ route, navigation }) {
     const [started, setStarted] = useState(false);
+    const [winner, setWinner] = useState('');
     const [interactive, setInteractive] = useState(true);
     const [noTime, setNoTime] = useState(false);
     const { gameId } = route.params;
@@ -37,17 +38,37 @@ export default function MultiplayerGame({ route, navigation }) {
         queryKey: ["game", gameId],
         queryFn: async () => {
             const game = await getGame(gameId);
-            if (game.users.length > 1) setStarted(true);
+            if (game.users.length > 1 && !started) {
+                id.current = getId();
+                enemyId.current = game.users.filter((userId) => {
+                    return id.current !== userId;
+                })[0];
+                setStarted(true);
+            }
             return game;
         },
     });
     const answerMut = useMutation({
-        mutationFn: (wasCorrect) =>
-            answer(gameId, wasCorrect, questionNum)
+        mutationFn: (wasCorrect) => answer(gameId, wasCorrect, questionNum),
     });
 
     function endGame() {
-        navigation.pop();
+        //TODO: We should wait till the other player is done before counting
+        let numOfGood = 0; 
+        let numOfGoodEnemy = 0;
+        game.data.answers[id.current].forEach(answer => {
+            if(answer) ++numOfGood;
+        });
+        
+        game.data.answers[enemyId.current].forEach(answer => {
+            if(answer) ++numOfGoodEnemy;
+        });
+
+        //TODO: Remis???
+        setWinner(numOfGood > numOfGoodEnemy ? id.current : enemyId.current);
+        setTimeout(() => {
+            navigation.pop();
+        },2000);
     }
 
     function nextRound(wasCorrect) {
@@ -78,15 +99,6 @@ export default function MultiplayerGame({ route, navigation }) {
 
     useEffect(() => {
         joinGame(gameId, (data) => {
-            if (!started) {
-                if (data.users.length > 1) {
-                    id.current = getId();
-                    enemyId.current = data.users.filter((userId) => {
-                        return id.current !== userId;
-                    })[0];
-                    setStarted(true);
-                }
-            }
             queryClient.invalidateQueries({ queryKey: ["game"] });
         });
         return () => {
@@ -109,7 +121,7 @@ export default function MultiplayerGame({ route, navigation }) {
         }, roundTime + fadeAnimTime);
     }, [started, questionNum]);
 
-    if (game.isError) return <Text>Kurwa</Text>;
+    if (game.isError) return <Text>{game.error}</Text>;
     if (game.isLoading) return <Text>Loading</Text>;
     if (!started) return <Text>Waiting for other players</Text>;
 
@@ -129,6 +141,17 @@ export default function MultiplayerGame({ route, navigation }) {
                     noTime={noTime}
                 />
             </View>
+            <Modal
+                visible={winner !== ''}
+                transparent={true}
+                animationType={"slide"}
+            >
+                <View style={modalStyles.modalBox}>
+                    <View style={modalStyles.modalContent}>
+                        <Text style={modalStyles.modalText}>{winner===id.current ? 'Wygranko' : 'Przegranko'}</Text>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -145,5 +168,36 @@ let styles = StyleSheet.create({
         flex: 1,
         alignItems: "center",
         padding: 20,
+    },
+    endGameModal: {
+        flex: 1
+    }
+});
+
+const modalStyles = StyleSheet.create({
+    modalBox: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: 22,
+    },
+    modalContent: {
+        margin: 20,
+        backgroundColor: "white",
+        borderRadius: 20,
+        padding: 35,
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    modalText: {
+        marginBottom: 15,
+        textAlign: 'center',
     },
 });

@@ -64,7 +64,7 @@ let questionCounterStyles = StyleSheet.create({
     text: {
         color: "white",
         marginHorizontal: 5,
-        fontSize: 6,
+        fontSize: 16,
     },
     left: {
         flexDirection: "row",
