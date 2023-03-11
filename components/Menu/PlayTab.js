@@ -58,13 +58,6 @@ export default function PlayTab({ navigation }) {
               });
     }
 
-    useEffect(() => {
-        setInterval(() => {
-            console.log('l');
-            queryClient.invalidateQueries({ queryKey: ["games"] });
-        },5000);
-    },[]);
-
     //   <Ionicons style="playIcon" name="game-controller" size={100} color="white" />
     //<Ionicons style="playIcon" name="game-controller" size={100} color="white" />
     return (
