@@ -1,8 +1,4 @@
-import {
-    StyleSheet,
-    View,
-    Dimensions,
-} from "react-native";
+import { StyleSheet, View, Dimensions, Text } from "react-native";
 import { useState, useContext, useEffect, useRef } from "react";
 import {
     useSharedValue,
@@ -14,28 +10,18 @@ import {
 import Question from "./Game/Question";
 import { GlobalCtx } from "./context";
 import { Timer } from "./Game/Timer";
-import QuestionCounter from "./Game/QuestionCounter";
+import MultiplayerQuestionCounter from "./Game/MultiplayerQuestionCounter";
+import { useQuery, useMutation, useQueryClient } from "react-query";
+import { joinGame, leaveGame, getGame, getId, answer} from "../lib/pocketbase";
 
-const Answer = {
-    None: "None",
-    Right: "Right",
-    Wrong: "Wrong",
-};
-
-export default function Game({ route, navigation }) {
+export default function MultiplayerGame({ route, navigation }) {
+    const [started, setStarted] = useState(false);
     const [interactive, setInteractive] = useState(true);
-    const [noTime,setNoTime] = useState(false);
-    const { indx } = route.params;
+    const [noTime, setNoTime] = useState(false);
+    const { gameId } = route.params;
 
     const questions = useContext(GlobalCtx).questions;
     const [questionNum, setQuestionNum] = useState(0);
-    const [answers, setAnswers] = useState([
-        Answer.None,
-        Answer.None,
-        Answer.None,
-        Answer.None,
-        Answer.None,
-    ]);
 
     const timeoutID = useRef(null);
 
@@ -44,29 +30,40 @@ export default function Game({ route, navigation }) {
     const fadeAnimTime = 500;
     const sliderWidth = useSharedValue(0);
 
+    const id = useRef("");
+    const enemyId = useRef("");
+    const queryClient = useQueryClient();
+    const game = useQuery({
+        queryKey: ["game", gameId],
+        queryFn: async () => {
+            const game = await getGame(gameId);
+            if (game.users.length > 1) setStarted(true);
+            return game;
+        },
+    });
+    const answerMut = useMutation({
+        mutationFn: (wasCorrect) =>
+            answer(gameId, wasCorrect, questionNum)
+    });
+
     function endGame() {
         navigation.pop();
     }
 
     function nextRound(wasCorrect) {
-        if(noTime) setNoTime(false);
+        if (noTime) setNoTime(false);
         setInteractive(false);
 
         clearTimeout(timeoutID.current);
         cancelAnimation(sliderWidth);
         sliderWidth.value = 0;
 
-        setAnswers((current) => {
-            wasCorrect
-                ? (current[questionNum] = Answer.Right)
-                : (current[questionNum] = Answer.Wrong);
-            return current;
-        });
+        answerMut.mutate(wasCorrect);
 
         setTimeout(() => {
             setQuestionNum((current) => {
-                if (current < indx.length - 1) {
-                    return (current+=1);
+                if (current < game.data.questions.length - 1) {
+                    return (current += 1);
                 } else {
                     endGame();
                     return current;
@@ -80,6 +77,25 @@ export default function Game({ route, navigation }) {
     }
 
     useEffect(() => {
+        joinGame(gameId, (data) => {
+            if (!started) {
+                if (data.users.length > 1) {
+                    id.current = getId();
+                    enemyId.current = data.users.filter((userId) => {
+                        return id.current !== userId;
+                    })[0];
+                    setStarted(true);
+                }
+            }
+            queryClient.invalidateQueries({ queryKey: ["game"] });
+        });
+        return () => {
+            leaveGame(gameId);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!started) return;
         sliderWidth.value = withDelay(
             fadeAnimTime,
             withTiming(-Dimensions.get("screen").width, {
@@ -91,16 +107,23 @@ export default function Game({ route, navigation }) {
             setNoTime(true);
             nextRound(false);
         }, roundTime + fadeAnimTime);
-    }, ["", questionNum]);
+    }, [started, questionNum]);
+
+    if (game.isError) return <Text>Kurwa</Text>;
+    if (game.isLoading) return <Text>Loading</Text>;
+    if (!started) return <Text>Waiting for other players</Text>;
 
     return (
         <View style={styles.main}>
             <Timer widthValue={sliderWidth} />
             <View style={styles.container}>
-                <QuestionCounter answers={answers} />
+                <MultiplayerQuestionCounter
+                    answers={game.data.answers[id.current]}
+                    enemyAnswers={game.data.answers[enemyId.current]}
+                />
                 <Question
-                    question={questions[indx[questionNum]]}
-                    interactive = {interactive}
+                    question={questions[game.data.questions[questionNum]]}
+                    interactive={interactive}
                     fadeAnimTime={fadeAnimTime}
                     nextRound={nextRound}
                     noTime={noTime}

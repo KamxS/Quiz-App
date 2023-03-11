@@ -10,7 +10,7 @@ const Answer = {
     Wrong: "Wrong",
 };
 
-export function QuestionCounter({ answers }) {
+export default function QuestionCounter({ answers }) {
     return (
         <View style={questionCounterStyles.main}>
             {answers.map((answer, ind) => {
